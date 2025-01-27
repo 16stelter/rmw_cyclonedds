@@ -11,6 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
+// NOTICE: This file has been modified by Sebastian Stelter
+// on January 27th 2025. Changes include adding some functions required for ROS2 Jazzy compatibility.
 
 #include <cassert>
 #include <cstring>
@@ -1830,7 +1833,7 @@ extern "C" rmw_ret_t rmw_publish(
     return RMW_RET_INVALID_ARGUMENT);
   auto pub = static_cast<CddsPublisher *>(publisher->data);
   assert(pub);
-  TRACEPOINT(rmw_publish, ros_message);
+  //TRACEPOINT(rmw_publish, ros_message);
   if (dds_write(pub->enth, ros_message) >= 0) {
     return RMW_RET_OK;
   } else {
@@ -3287,7 +3290,7 @@ static rmw_ret_t rmw_take_ser_int(
   RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
     subscription handle,
     subscription->implementation_identifier, eclipse_cyclonedds_identifier,
-    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION)
+    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
   CddsSubscription * sub = static_cast<CddsSubscription *>(subscription->data);
   RET_NULL(sub);
   dds_sample_info_t info;
@@ -5185,6 +5188,121 @@ extern "C" rmw_ret_t rmw_count_subscribers(
   auto common_context = &node->context->impl->common;
   const std::string mangled_topic_name = make_fqtopic(ROS_TOPIC_PREFIX, topic_name, "", false);
   return common_context->graph_cache.get_reader_count(mangled_topic_name, count);
+}
+
+extern "C" rmw_ret_t rmw_count_clients(
+  const rmw_node_t * node, const char * service_name,
+  size_t * count)
+{
+  RMW_CHECK_ARGUMENT_FOR_NULL(node, RMW_RET_INVALID_ARGUMENT);
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
+    node, node->implementation_identifier, eclipse_cyclonedds_identifier,
+    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
+  RMW_CHECK_ARGUMENT_FOR_NULL(service_name, RMW_RET_INVALID_ARGUMENT);
+  int validation_result = RMW_TOPIC_VALID;
+  rmw_ret_t ret = rmw_validate_full_topic_name(service_name, &validation_result, nullptr);
+  if (RMW_RET_OK != ret) {
+    return ret;
+  }
+  if (RMW_TOPIC_VALID != validation_result) {
+    const char * reason = rmw_full_topic_name_validation_result_string(validation_result);
+    RMW_SET_ERROR_MSG_WITH_FORMAT_STRING("service_name argument is invalid: %s", reason);
+    return RMW_RET_INVALID_ARGUMENT;
+  }
+  RMW_CHECK_ARGUMENT_FOR_NULL(count, RMW_RET_INVALID_ARGUMENT);
+  auto common_context = &node->context->impl->common;
+  const std::string mangled_rp_service_name =
+    make_fqtopic(ROS_SERVICE_RESPONSE_PREFIX, service_name, "Reply", false);
+  return common_context->graph_cache.get_reader_count(mangled_rp_service_name, count);
+}
+
+extern "C" rmw_ret_t rmw_count_services(
+  const rmw_node_t * node, const char * service_name,
+  size_t * count)
+{
+  RMW_CHECK_ARGUMENT_FOR_NULL(node, RMW_RET_INVALID_ARGUMENT);
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
+    node, node->implementation_identifier, eclipse_cyclonedds_identifier,
+    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
+  RMW_CHECK_ARGUMENT_FOR_NULL(service_name, RMW_RET_INVALID_ARGUMENT);
+  int validation_result = RMW_TOPIC_VALID;
+  rmw_ret_t ret = rmw_validate_full_topic_name(service_name, &validation_result, nullptr);
+  if (RMW_RET_OK != ret) {
+    return ret;
+  }
+  if (RMW_TOPIC_VALID != validation_result) {
+    const char * reason = rmw_full_topic_name_validation_result_string(validation_result);
+    RMW_SET_ERROR_MSG_WITH_FORMAT_STRING("service_name argument is invalid: %s", reason);
+    return RMW_RET_INVALID_ARGUMENT;
+  }
+  RMW_CHECK_ARGUMENT_FOR_NULL(count, RMW_RET_INVALID_ARGUMENT);
+  auto common_context = &node->context->impl->common;
+  const std::string mangled_rp_service_name =
+    make_fqtopic(ROS_SERVICE_RESPONSE_PREFIX, service_name, "Reply", false);
+  return common_context->graph_cache.get_writer_count(mangled_rp_service_name, count);
+}
+
+extern "C" rmw_ret_t rmw_get_gid_for_client(const rmw_client_t * client, rmw_gid_t * gid)
+{
+  RMW_CHECK_ARGUMENT_FOR_NULL(client, RMW_RET_INVALID_ARGUMENT);
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
+    client, client->implementation_identifier, eclipse_cyclonedds_identifier,
+    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
+  RMW_CHECK_ARGUMENT_FOR_NULL(gid, RMW_RET_INVALID_ARGUMENT);
+
+  const CddsClient * cli = static_cast<const CddsClient *>(client->data);
+  gid->implementation_identifier = eclipse_cyclonedds_identifier;
+  memset(gid->data, 0, sizeof(gid->data));
+  static_assert(
+    sizeof(cli->client.id.data) <= sizeof(gid->data),
+    "client id is larger than max rmw gid size");
+  memcpy(gid->data, cli->client.id.data, sizeof(cli->client.id.data));
+  return RMW_RET_OK;
+}
+
+extern "C" rmw_ret_t rmw_take_dynamic_message(
+  const rmw_subscription_t * subscription,
+  rosidl_dynamic_typesupport_dynamic_data_t * dynamic_message,
+  bool * taken,
+  rmw_subscription_allocation_t * allocation)
+{
+  static_cast<void>(subscription);
+  static_cast<void>(dynamic_message);
+  static_cast<void>(taken);
+  static_cast<void>(allocation);
+
+  RMW_SET_ERROR_MSG("rmw_take_dynamic_message: unimplemented");
+  return RMW_RET_UNSUPPORTED;
+}
+
+extern "C" rmw_ret_t rmw_take_dynamic_message_with_info(
+  const rmw_subscription_t * subscription,
+  rosidl_dynamic_typesupport_dynamic_data_t * dynamic_message,
+  bool * taken,
+  rmw_message_info_t * message_info,
+  rmw_subscription_allocation_t * allocation)
+{
+  static_cast<void>(subscription);
+  static_cast<void>(dynamic_message);
+  static_cast<void>(taken);
+  static_cast<void>(message_info);
+  static_cast<void>(allocation);
+
+  RMW_SET_ERROR_MSG("rmw_take_dynamic_message_with_info: unimplemented");
+  return RMW_RET_UNSUPPORTED;
+}
+
+extern "C" rmw_ret_t rmw_serialization_support_init(
+  const char * serialization_lib_name,
+  rcutils_allocator_t * allocator,
+  rosidl_dynamic_typesupport_serialization_support_t * serialization_support)
+{
+  static_cast<void>(serialization_lib_name);
+  static_cast<void>(allocator);
+  static_cast<void>(serialization_support);
+
+  RMW_SET_ERROR_MSG("rmw_serialization_support_init: unimplemented");
+  return RMW_RET_UNSUPPORTED;
 }
 
 using GetNamesAndTypesByNodeFunction = rmw_ret_t (*)(
